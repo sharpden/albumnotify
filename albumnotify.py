@@ -46,10 +46,12 @@ def get_musicbrainz_url(band):
 def get_lastfm_scrobbles(band):
     page = requests_get_cached(get_lastfm_url(band))
     tree = etree.HTML(page)
-    items = tree.xpath('//div[@class="catalogue-scrobble-graph-top-data"]/strong/text()')
+    #items = tree.xpath('//div[@class="catalogue-scrobble-graph-top-data"]/strong/text()')
+    items = tree.xpath('//div[@class="header-metadata-global-stats"]//abbr/@title')
     if len(items) < 2:
         return 0
-    return int(re.sub(r'\D', '', items[1]))
+    #return int(re.sub(r'\D', '', items[1]))
+    return int(re.sub(r'\D', '', items[0]))
 
 def get_artist_ids(band):
     js = json.loads(requests_get_cached('http://musicbrainz.org/ws/2/artist/?query=%s&fmt=json' % urllib.quote_plus(band)))
