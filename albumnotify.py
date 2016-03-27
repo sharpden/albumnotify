@@ -32,8 +32,21 @@ def requests_get_cached(url):
     if not os.path.exists(cached_filename):
         # https://python-musicbrainzngs.readthedocs.org/en/latest/api/#general
         # musicbrainzngs.set_rate_limit(limit_or_interval=1.0, new_requests=1)
-        time.sleep(1)
-        resp = requests.get(url)
+        status_code = 0
+        delay = 1
+        retry_attempts = 10
+        for i in range(retry_attempts):
+            time.sleep(delay)
+            delay *= 1.9
+            resp = requests.get(url)
+
+            if resp.status_code == 200:
+                break
+            print "Got status code #{}, retrying (attempt {}/{})...".format(resp.status_code, i+2, retry_attempts)
+
+        if resp.status_code != 200:
+            raise IOError("Can't fetch url %s" % url)
+
         result = resp.text.encode('utf-8')
         file_put(cached_filename, result)
     return file_get(cached_filename)
