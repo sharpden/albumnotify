@@ -3,6 +3,7 @@ import requests, urllib, json, re, time, os
 from lxml import etree
 from datetime import datetime
 import webbrowser
+from retrying import retry
 
 
 def file_put(filename, text):
@@ -22,6 +23,7 @@ def get_album_type(release):
         types = types[1:]
     return ' '.join(types)
 
+@retry(wait_exponential_multiplier=1000, stop_max_delay=60000)
 def requests_get_cached(url):
     cached_filename = 'cache/' + urllib.quote_plus(url) + ".txt"
     abs_path = os.path.join(os.getcwd(), cached_filename)
@@ -34,6 +36,8 @@ def requests_get_cached(url):
         # musicbrainzngs.set_rate_limit(limit_or_interval=1.0, new_requests=1)
         time.sleep(1)
         resp = requests.get(url)
+        if resp.status_code != 200:
+            raise IOError("Can't fetch url %s" % url)
         result = resp.text.encode('utf-8')
         file_put(cached_filename, result)
     return file_get(cached_filename)
@@ -112,24 +116,27 @@ def generate_html_albums_report(interesting_bands):
     html.append('Artists: %d<hr>' % len(interesting_bands))
     for band, artist_id in interesting_bands:
         print band
-        artist_ids = get_artist_ids(band) if artist_id == None else [artist_id]
-        scrobbles = get_lastfm_scrobbles(band)
-        scrobbles_top[band] = scrobbles
-        html.append('<h1><a href="%s">%s</a></h1> (<a href="%s">%s</a> plays) <small>[<a href="http://rutracker.org/forum/tracker.php?max=1&nm=%s" target="_blank">rutracker</a>]</small><br>' % (
-            get_musicbrainz_url(band), band, get_lastfm_url(band), number_format(scrobbles), urllib.quote_plus(band)))
-        if len(artist_ids) > 0:
-            html.append('<table>')
-            for title, year, release_type in get_albums(artist_ids[0]):
-                html.append('<tr class="%s %s"><td class="year">%s<td class="album-type">%s<td>%s' % (
-                    get_year_class(year), get_album_type_class(release_type), year, release_type, title))
-            html.append('</table>')
+        try:
+            artist_ids = get_artist_ids(band) if artist_id == None else [artist_id]
+            scrobbles = get_lastfm_scrobbles(band)
+            scrobbles_top[band] = scrobbles
+            html.append('<h1><a href="%s">%s</a></h1> (<a href="%s">%s</a> plays) <small>[<a href="http://rutracker.org/forum/tracker.php?max=1&nm=%s" target="_blank">rutracker</a>]</small><br>\n' % (
+                get_musicbrainz_url(band), band, get_lastfm_url(band), number_format(scrobbles), urllib.quote_plus(band)))
+            if len(artist_ids) > 0:
+                html.append('<table>\n')
+                for title, year, release_type in get_albums(artist_ids[0]):
+                    html.append('<tr class="%s %s"><td class="year">%s<td class="album-type">%s<td>%s\n' % (
+                        get_year_class(year), get_album_type_class(release_type), year, release_type, title))
+                html.append('</table>\n\n')
+        except Exception as e:
+            print '\t', e
 
     html.append('<hr>')
-    html.append('<h1>Last.fm rating</h1>')
-    html.append('<table>')
+    html.append('<h1>Last.fm rating</h1>\n')
+    html.append('<table>\n')
     for band, scrobbles in sorted(scrobbles_top.items(), key=lambda x: x[1], reverse=True):
-        html.append('<tr><td align="right">%s<td>%s' % (number_format(scrobbles), band))
-    html.append('</table>')
+        html.append('<tr><td align="right">%s<td>%s\n' % (number_format(scrobbles), band))
+    html.append('</table>\n')
     return ''.join(html)
 
 
