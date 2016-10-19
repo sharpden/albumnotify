@@ -96,38 +96,61 @@ def get_album_type_class(types):
 def number_format(num):
     return '{:,}'.format(num).replace(',', '&nbsp;')
 
+def get_anchor(name):
+    def replace_name(s):
+        def replace_char(ch):
+            if ch == ' ':
+                return '_'
+            else:
+                return '.%02X' % ord(ch)
+        return ''.join(map(replace_char, s.group()))
+    return re.sub('[^A-Z]', replace_name, name, flags=re.I)
+
 
 def generate_html_albums_report(interesting_bands):
-    html = ['''
-    <meta charset="utf-8">
-    <style>
-    body, table { font: 11px 'tahoma'; }
-    h1 { display: inline; font: 18px 'trebuchet ms'; font-weight: normal; }
-    table td { vertical-align: top; }
-    .year { width: 30px; }
-    .album-type { font-size: -1; width: 100px; }
-    .this-year .year { color: red; }
-    .prev-year .year { color: orange; }
-    .unworthy { color: gray; }
-    </style>
-    ''']
+    css = '''
+        <meta charset="utf-8">
+        <style>
+        body, table { font: 11px 'tahoma'; }
+        h1 { display: inline; font: 18px 'trebuchet ms'; font-weight: normal; }
+        table td { vertical-align: top; }
+        .year { width: 30px; }
+        .album-type { font-size: -1; width: 100px; }
+        .header { columns: 12; -webkit-columns: 12; -moz-column-count: 12; }
+        .this-year .year, a.this-year { color: red; }
+        .prev-year .year, a.prev-year { color: orange; }
+        .unworthy { color: gray; }
+        </style>
+    '''
+    html = []
+    header_html = []
 
     scrobbles_top = dict()
-    html.append('Artists: %d<hr>' % len(interesting_bands))
     for band, artist_id in interesting_bands:
         print band
         try:
             artist_ids = get_artist_ids(band) if artist_id == None else [artist_id]
-            scrobbles = get_lastfm_scrobbles(band)
-            scrobbles_top[band] = scrobbles
-            html.append('<h1><a href="%s">%s</a></h1> (<a href="%s">%s</a> plays) <small>[<a href="http://rutracker.org/forum/tracker.php?max=1&nm=%s" target="_blank">rutracker</a>]</small><br>\n' % (
-                get_musicbrainz_url(band), band, get_lastfm_url(band), number_format(scrobbles), urllib.quote_plus(band)))
+            scrobbles_top[band] = get_lastfm_scrobbles(band)
+            html.append('''
+                <h1><a href="%s" name="%s">%s</a></h1>
+                (<a href="%s">%s</a> plays)
+                <small>[<a href="https://rutracker.org/forum/tracker.php?max=1&nm=%s" target="_blank">rutracker</a>]</small><br>
+            ''' % (
+                get_musicbrainz_url(band), get_anchor(band), band,
+                get_lastfm_url(band), number_format(scrobbles_top[band]),
+                urllib.quote_plus(band)
+            ))
+            last_year = 0
             if len(artist_ids) > 0:
                 html.append('<table>\n')
                 for title, year, release_type in get_albums(artist_ids[0]):
                     html.append('<tr class="%s %s"><td class="year">%s<td class="album-type">%s<td>%s\n' % (
                         get_year_class(year), get_album_type_class(release_type), year, release_type, title))
+                    last_year = max(last_year, year)
                 html.append('</table>\n\n')
+                
+            header_html.append('<a href="#%s" class="%s">%s</a><br>'
+                % (get_anchor(band), get_year_class(last_year), band))
         except Exception as e:
             print '\t', e
 
@@ -137,7 +160,8 @@ def generate_html_albums_report(interesting_bands):
     for band, scrobbles in sorted(scrobbles_top.items(), key=lambda x: x[1], reverse=True):
         html.append('<tr><td align="right">%s<td>%s\n' % (number_format(scrobbles), band))
     html.append('</table>\n')
-    return ''.join(html)
+
+    return css + 'Artists: %d<hr>' % len(interesting_bands) + '<div class="header">' + ''.join(header_html) + '</div><hr>' + ''.join(html)
 
 
 if __name__ == '__main__':
