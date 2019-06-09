@@ -25,12 +25,13 @@ def get_album_type(release):
 
 @retry(wait_exponential_multiplier=1000, stop_max_delay=60000)
 def requests_get_cached(url):
-    cached_filename = 'cache/' + urllib.quote_plus(url) + ".txt"
+    cache_dir = 'cache' + datetime.now().strftime('%Y-%m-%d')
+    cached_filename = cache_dir + '/' + urllib.quote_plus(url) + ".txt"
     abs_path = os.path.join(os.getcwd(), cached_filename)
     if len(abs_path) > 240:
         cached_filename = cached_filename[:-4][:-(len(abs_path) - 240)] + '.txt'
-    if not os.path.exists('cache'):
-        os.mkdir('cache')
+    if not os.path.exists(cache_dir):
+        os.mkdir(cache_dir)
     if not os.path.exists(cached_filename):
         # https://python-musicbrainzngs.readthedocs.org/en/latest/api/#general
         # musicbrainzngs.set_rate_limit(limit_or_interval=1.0, new_requests=1)
@@ -51,7 +52,8 @@ def get_lastfm_scrobbles(band):
     page = requests_get_cached(get_lastfm_url(band))
     tree = etree.HTML(page)
     #items = tree.xpath('//div[@class="catalogue-scrobble-graph-top-data"]/strong/text()')
-    items = tree.xpath('//div[@class="header-metadata-global-stats"]//abbr/@title')
+    #items = tree.xpath('//div[@class="header-metadata-global-stats"]//abbr/@title')
+    items = tree.xpath('//ul[@class="header-metadata"]//abbr/@title') + tree.xpath('//ul[@class="header-metadata-tnew"]//abbr/@title')
     if len(items) < 2:
         return 0
     #return int(re.sub(r'\D', '', items[1]))
