@@ -1,5 +1,6 @@
  # -*- coding: utf-8 -*-
-import requests, urllib, json, re, time, os
+import json, os, re, sys, time, urllib
+import requests
 from lxml import etree
 from datetime import datetime
 import webbrowser
@@ -80,6 +81,8 @@ def get_interesting_bands_from_file(filename):
         band = band.replace('/', ' ') # To/Die/For HTTP 400
         band = band.replace(' (band)', '').replace(' (группа)', '')
         band = band.replace('%C3%AB', 'ë')
+        if band.startswith('-'):
+            continue
         yield band, artist_id
 
 
@@ -126,10 +129,11 @@ def generate_html_albums_report(interesting_bands):
     '''
     html = []
     header_html = []
+    last_year_releases = []
 
     scrobbles_top = dict()
     for band, artist_id in interesting_bands:
-        print band
+        print band,; sys.stdout.flush()
         try:
             artist_ids = get_artist_ids(band) if artist_id == None else [artist_id]
             scrobbles_top[band] = get_lastfm_scrobbles(band)
@@ -148,11 +152,16 @@ def generate_html_albums_report(interesting_bands):
                 for title, year, release_type in get_albums(artist_ids[0]):
                     html.append('<tr class="%s %s"><td class="year">%s<td class="album-type">%s<td>%s\n' % (
                         get_year_class(year), get_album_type_class(release_type), year, release_type, title))
+                    if get_year_class(year) == 'this-year':
+                        last_year_releases.append('<tr class="%s"><td>%s<td class="album-type">%s<td>%s\n' % (
+                            get_album_type_class(release_type), band, release_type, title))
                     last_year = max(last_year, year)
                 html.append('</table>\n\n')
                 
             header_html.append('<a href="#%s" class="%s">%s</a><br>'
                 % (get_anchor(band), get_year_class(last_year), band))
+
+            print last_year; sys.stdout.flush()
         except Exception as e:
             print '\t', e
 
@@ -163,7 +172,11 @@ def generate_html_albums_report(interesting_bands):
         html.append('<tr><td align="right">%s<td>%s\n' % (number_format(scrobbles), band))
     html.append('</table>\n')
 
-    return css + 'Artists: %d<hr>' % len(interesting_bands) + '<div class="header">' + ''.join(header_html) + '</div><hr>' + ''.join(html)
+    return css + \
+        'Artists: %d<hr>' % len(interesting_bands) + \
+        '<div class="header">' + ''.join(header_html) + '</div><hr>' + \
+        '<table>\n' + '\n'.join(last_year_releases) + '</table><hr>' + \
+        ''.join(html)
 
 
 if __name__ == '__main__':
